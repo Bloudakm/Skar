@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <TFT_eSPI.h>
+#include "SPIFFS.h"
+#include "FS.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 
@@ -39,7 +41,7 @@ void touch_calibrate() {
       SPIFFS.remove(CALIBRATION_FILE);
     } else {
       // Load last calibration file
-      File f = SPIFFS.open(CALIBRATION_FILE, "r");
+      fs::File f = SPIFFS.open(CALIBRATION_FILE, "r");
       if (f) {
         if (f.readBytes((char *)calData, 14) == 14)
           calDataOK = 1;
@@ -75,7 +77,7 @@ void touch_calibrate() {
     tft.println("Calibration complete!");
 
     // Saving calibration file into SPIFFS
-    File f = SPIFFS.open(CALIBRATION_FILE, "w");
+    fs::File f = SPIFFS.open(CALIBRATION_FILE, "w");
     if (f) {
       f.write((const unsigned char *)calData, 14);
       f.close();
@@ -176,10 +178,10 @@ void setup() {
 void loop() {
   uint16_t x, y;
   if (tft.getTouch(&x, &y)) {
-    if (millis() - lastTouch > 800) {
+    if (millis() - lastTouchTime > 800) {
       showDetails = !showDetails;
-      showDetails ? drawDetails() : drawFace();
-      lastTouch = millis();
+      showDetails ? drawDetailsScreen() : drawFaceScreen();
+      lastTouchTime = millis();
     }
   }
 }
