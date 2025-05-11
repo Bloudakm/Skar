@@ -48,6 +48,9 @@ jjxDah2nGN59PRbxYvnKkKj9
 #define CALIBRATION_FILE "/TouchCalData"
 #define REPEAT_CAL false
 
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
+
 // --- Display Setup ---
 TFT_eSPI tft = TFT_eSPI();
 
@@ -65,6 +68,15 @@ String icon = "";
 
 float irisPhase = 0; // animation phase
 uint8_t prevCloudiness = 0;
+
+// Store forecast data
+#define MAX_FORECAST 4
+struct Forecast {
+  String time;
+  String condition;
+  int temp;
+};
+Forecast forecasts[MAX_FORECAST];
 
 void touch_calibrate() {
   uint16_t calData[5];
@@ -153,7 +165,7 @@ void fetchWeather() {
       {
         HTTPClient https;
 
-        String url = "https://api.openweathermap.org/data/2.5/weather?q=";
+        String url = "https://api.openweathermap.org/data/2.5/forecast?q=";
               url += String(CITY) + "," + String(COUNTRY);
               url += "&units=metric&appid=" + String(API_KEY);
         
@@ -165,13 +177,14 @@ void fetchWeather() {
             Serial.println("Request payload: ");
             Serial.println(payload);
 
-            StaticJsonDocument<1024> doc;
-            DeserializationError err = deserializeJson(doc, payload);
-            if (!err) {
-              temperature = int(doc["main"]["temp"]);
-              cloudiness = int(doc["clouds"]["all"]);
-              humidity = int(doc["main"]["humidity"]);
-              description = String(doc["weather"][0]["description"].as<const char*>());
+            DynamicJsonDocument doc(8192);
+            deserializeJson(doc, payload);
+
+            for (int i = 0; i < MAX_FORECAST; i++) {
+              String timestamp = doc["list"][i]["dt_txt"].as<String>();
+              forecasts[i].time = timestamp.substring(11, 16);
+              forecasts[i].temp = int(doc["list"][i]["main"]["temp"].as<float>());
+              forecasts[i].condition = doc["list"][i]["weather"][0]["main"].as<String>();
             }
           }
 
@@ -188,49 +201,76 @@ void fetchWeather() {
   }
 }
 
-// --- Eye Drawing ---
-void drawRobotEye(int centerX, int centerY, float phase, uint16_t eyeColor, int cloudiness) {
-  const int eyeWidth = 60;
-  const int eyeHeight = 40;
-  const int irisMax = 10;
-  const int border = 4;
-
-  // Base Eye Shape
-  tft.fillRoundRect(centerX - eyeWidth / 2, centerY - eyeHeight / 2, eyeWidth, eyeHeight, 8, TFT_DARKGREY);
-  tft.drawRoundRect(centerX - eyeWidth / 2, centerY - eyeHeight / 2, eyeWidth, eyeHeight, 8, TFT_WHITE);
-
-  // Animate iris pulsing with sin wave
-  int irisRadius = 5 + sin(phase) * 3;
-  tft.fillCircle(centerX, centerY, irisRadius, eyeColor);
-  tft.drawCircle(centerX, centerY, irisRadius + 1, TFT_WHITE);
-
-  // Eyebrow (simple line above eye)
-  int browWidth = map(cloudiness, 0, 100, 0, 50);
-  if (browWidth > 0)
-    tft.fillRect(centerX - browWidth / 2, centerY - eyeHeight / 2 - 10, browWidth, 4, TFT_WHITE);
+void drawMainScreen() {
+  tft.fillScreen(TFT_BLACK);
+  // Example values (ideally these come from weather)
+  uint16_t irisColor = TFT_BLUE; // Based on temp
+  drawEyes(irisColor);
 }
 
-void drawFaceAnimated() {
-  tft.fillScreen(TFT_BLACK);
-  uint16_t eyeColor = tempToColor(temperature);
+void drawEyes(uint16_t irisColor) {
+  int eyeRadius = 50;
+  int eyeX1 = 100;
+  int eyeX2 = 220;
+  int eyeY = 120;
 
-  drawRobotEye(80, 120, irisPhase, eyeColor, cloudiness);
-  drawRobotEye(240, 120, irisPhase + PI, eyeColor, cloudiness); // offset phase for variation
+  // Draw eye whites (only once, to avoid flicker)
+  tft.fillCircle(eyeX1, eyeY, eyeRadius, TFT_WHITE);
+  tft.fillCircle(eyeX2, eyeY, eyeRadius, TFT_WHITE);
+
+  static int dx = 1;
+  static int irisOffset = 0;
+  irisOffset += dx;
+  if (irisOffset > 10 || irisOffset < -10) dx = -dx;
+
+  drawIris(eyeX1 + irisOffset, eyeY, 15, irisColor);
+  drawIris(eyeX2 + irisOffset, eyeY, 15, irisColor);
+
+  delay(50);
+}
+
+void drawIris(int x, int y, int r, uint16_t color) {
+  static int prevX1 = -1, prevX2 = -1;
+  if (prevX1 != -1) {
+    tft.fillCircle(prevX1, y, r + 1, TFT_WHITE);
+    tft.fillCircle(prevX2, y, r + 1, TFT_WHITE);
+  }
+  tft.fillCircle(x, y, r, color);
+  if (x < SCREEN_WIDTH / 2)
+    prevX1 = x;
+  else
+    prevX2 = x;
 }
 
 void drawDetails() {
   tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE);
 
-  tft.setCursor(10, 30);
-  tft.printf("Temp: %d C\n", temperature);
-  tft.setCursor(10, 70);
-  tft.printf("Clouds: %d %%\n", cloudiness);
-  tft.setCursor(10, 110);
-  tft.printf("Humidity: %d %%\n", humidity);
-  tft.setCursor(10, 150);
-  tft.printf("Sky: %s", description.c_str());
+  for (int i = 0; i < MAX_FORECAST; i++) {
+    int x = 10;
+    int y = 10 + i * 55;
+    tft.setCursor(x, y);
+    tft.print(forecasts[i].time);
+    tft.setCursor(x + 100, y);
+    tft.print(forecasts[i].temp);
+    tft.print(" C");
+    drawWeatherIcon(forecasts[i].condition, x + 200, y);
+  }
+}
+
+void drawWeatherIcon(String condition, int x, int y) {
+  if (condition == "Clear") {
+    tft.fillCircle(x, y, 10, TFT_YELLOW);
+  } else if (condition == "Clouds") {
+    tft.fillRoundRect(x - 10, y - 5, 20, 10, 3, TFT_LIGHTGREY);
+  } else if (condition == "Rain") {
+    tft.fillRoundRect(x - 10, y - 5, 20, 10, 3, TFT_LIGHTGREY);
+    tft.fillCircle(x - 5, y + 8, 2, TFT_BLUE);
+    tft.fillCircle(x + 5, y + 8, 2, TFT_BLUE);
+  } else {
+    tft.drawXBitmap(x, y, rain_bits, 16, 16, TFT_WHITE); // fallback
+  }
 }
 
 void setup() {
@@ -262,7 +302,7 @@ void setup() {
 
   connectWiFi();
   fetchWeather();
-  drawFaceAnimated();
+  drawMainScreen();
 }
 
 void loop() {
@@ -270,7 +310,7 @@ void loop() {
   if (tft.getTouch(&x, &y)) {
     if (millis() - lastTouchTime > 800) {
       showDetails = !showDetails;
-      showDetails ? drawDetails() : drawFaceAnimated();
+      showDetails ? drawDetails() : drawMainScreen();
       lastTouchTime = millis();
     }
   }
@@ -279,14 +319,14 @@ void loop() {
   if (!showDetails && millis() - lastFrame > 5) {
     irisPhase += 0.2;
     if (irisPhase > TWO_PI) irisPhase -= TWO_PI;
-    drawFaceAnimated();
+    drawMainScreen();
     lastFrame = millis();
   }
 
   // update information every 10 minutes
   if(millis() - lastAPICall > (10*60*1000)) {
     fetchWeather();
-    showDetails ? drawDetails() : drawFaceAnimated();
+    showDetails ? drawDetails() : drawMainScreen();
     lastAPICall = millis();
   }
 }
