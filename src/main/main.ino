@@ -6,7 +6,7 @@
 #include <ArduinoJson.h>
 #include <SPI.h>
 
-#include "user_secrets.h"
+#include "secrets.h"
 
 #define CALIBRATION_FILE "/TouchCalData"
 #define REPEAT_CAL false
