@@ -32,8 +32,6 @@
 Make sure to create a `secrets.h` file in the src/main/ folder:
 
 ```cpp
-#pragma once
-
 #define SSID = "YOUR_WIFI_SSID"
 #define PASSWORD = "YOUR_WIFI_PASSWORD"
 #define API_KEY = "YOUR_OPENWEATHER_API_KEY"
