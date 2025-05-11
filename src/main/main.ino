@@ -162,7 +162,7 @@ void fetchWeather() {
           if (httpCode > 0) {
             String payload = https.getString();
 
-            Serial.println("Request payload: ")
+            Serial.println("Request payload: ");
             Serial.println(payload);
 
             StaticJsonDocument<1024> doc;
@@ -218,7 +218,7 @@ void drawFaceAnimated() {
   drawRobotEye(240, 120, irisPhase + PI, eyeColor, cloudiness); // offset phase for variation
 }
 
-void drawDetailsScreen() {
+void drawDetails() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
@@ -270,13 +270,13 @@ void loop() {
   if (tft.getTouch(&x, &y)) {
     if (millis() - lastTouchTime > 800) {
       showDetails = !showDetails;
-      showDetails ? drawFaceAnimated() : drawFaceScreen();
+      showDetails ? drawDetails() : drawFaceAnimated();
       lastTouchTime = millis();
     }
   }
 
   // Animate eyes every ~50ms
-  if (!showDetails && millis() - lastFrame > 50) {
+  if (!showDetails && millis() - lastFrame > 5) {
     irisPhase += 0.2;
     if (irisPhase > TWO_PI) irisPhase -= TWO_PI;
     drawFaceAnimated();
@@ -286,7 +286,7 @@ void loop() {
   // update information every 10 minutes
   if(millis() - lastAPICall > (10*60*1000)) {
     fetchWeather();
-    showDetails ? drawFaceAnimated() : drawFaceScreen();
+    showDetails ? drawDetails() : drawFaceAnimated();
     lastAPICall = millis();
   }
 }
