@@ -8,6 +8,7 @@
 #include <SPI.h>
 
 #include "secrets.h"
+#include "icons.h"
 
 const char *rootCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
@@ -316,12 +317,12 @@ void loop() {
   }
 
   // Animate eyes every ~50ms
-  if (!showDetails && millis() - lastFrame > 5) {
+  /*if (!showDetails && millis() - lastFrame > 5) {
     irisPhase += 0.2;
     if (irisPhase > TWO_PI) irisPhase -= TWO_PI;
     drawMainScreen();
     lastFrame = millis();
-  }
+  }*/
 
   // update information every 10 minutes
   if(millis() - lastAPICall > (10*60*1000)) {
