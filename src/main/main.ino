@@ -3,15 +3,14 @@
 #include <TFT_eSPI.h>
 #include <ArduinoJson.h>
 #include <SPI.h>
-#include <XPT2046_Touchscreen.h> // Only if using touchscreen
 
 #include "user_secrets.h"
 
+#define CALIBRATION_FILE "/TouchCalData"
+#define REPEAT_CAL false
+
 // --- Display Setup ---
 TFT_eSPI tft = TFT_eSPI();
-#define TOUCH_CS  21
-#define TOUCH_IRQ 39
-XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
 
 // --- State ---
 bool showDetails = false;
@@ -21,6 +20,68 @@ int cloudiness = 0;
 int humidity = 0;
 String description = "";
 String icon = "";
+
+void touch_calibrate() {
+  uint16_t calData[5];
+  uint8_t calDataOK = 0;
+
+  // Starting SPIFFS file system
+  if (!SPIFFS.begin()) {
+    //Serial.println("Formatting file system");
+    SPIFFS.format();
+    SPIFFS.begin();
+  }
+
+  // Check if calibration already exists 
+  if (SPIFFS.exists(CALIBRATION_FILE)) {
+    if (REPEAT_CAL) {
+      // Repeat calibration in case user wants to 
+      SPIFFS.remove(CALIBRATION_FILE);
+    } else {
+      // Load last calibration file
+      File f = SPIFFS.open(CALIBRATION_FILE, "r");
+      if (f) {
+        if (f.readBytes((char *)calData, 14) == 14)
+          calDataOK = 1;
+        f.close();
+      }
+    }
+  }
+
+  if (calDataOK && !REPEAT_CAL) {
+    // Set calibration for display
+    tft.setTouch(calData);
+  } else {
+    // In case of faulty calibration file repeat it
+    tft.fillScreen(TFT_BLACK);
+    tft.setCursor(20, 0);
+    tft.setTextFont(2);
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+    tft.println("Touch corners as indicated");
+
+    tft.setTextFont(1);
+    tft.println();
+
+    if (REPEAT_CAL) {
+      tft.setTextColor(TFT_RED, TFT_BLACK);
+      tft.println("Set REPEAT_CAL to false to stop this running again!");
+    }
+    // During the calibration the user has to click on an arrow in each corner
+    tft.calibrateTouch(calData, TFT_MAGENTA, TFT_BLACK, 15);
+
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.println("Calibration complete!");
+
+    // Saving calibration file into SPIFFS
+    File f = SPIFFS.open(CALIBRATION_FILE, "w");
+    if (f) {
+      f.write((const unsigned char *)calData, 14);
+      f.close();
+    }
+  }
+}
 
 // --- Colors ---
 uint16_t tempToColor(int tempC) {
@@ -93,27 +154,32 @@ void drawDetailsScreen() {
 
 void setup() {
   Serial.begin(115200);
+
+  if(!SPIFFS.begin(true)){
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  } 
+
   tft.init();
   tft.setRotation(1); // adjust if needed
-  ts.begin();
-  ts.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextFont(2);
+
+  touch_calibrate();
+  tft.begin();
+
   connectWiFi();
   fetchWeather();
   drawFaceScreen();
 }
 
 void loop() {
-  if (ts.touched()) {
-    TS_Point p = ts.getPoint();
-    // Simple debounce
-    if (millis() - lastTouchTime > 800) {
+  uint16_t x, y;
+  if (tft.getTouch(&x, &y)) {
+    if (millis() - lastTouch > 800) {
       showDetails = !showDetails;
-      if (showDetails) {
-        drawDetailsScreen();
-      } else {
-        drawFaceScreen();
-      }
-      lastTouchTime = millis();
+      showDetails ? drawDetails() : drawFace();
+      lastTouch = millis();
     }
   }
 }
