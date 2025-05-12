@@ -270,26 +270,27 @@ void eyesBlink() {
 }
 
 void eyesMove() {
-  Serial.println("moovin");
+  bool stillMoving = false;
   tft.fillScreen(TFT_BLACK);
 
-  for(int i = 0; i < 2; i++) {
-    int diffX = eyes[i].targetX-eyes[i].x;
-    int diffY = eyes[i].targetY-eyes[i].y;
+  for (int i = 0; i < 2; i++) {
+    int dx = eyes[i].targetX - eyes[i].x;
+    int dy = eyes[i].targetY - eyes[i].y;
 
-    if((diffX > speedX || diffX < -speedX) && (diffY > speedY || diffY < -speedY)) {
-      eyes[i].x += speedX;
-      eyes[i].y += speedY;
-    } else if(eyes[0].targetX != EYE_X) {
-      eyes[i].x = eyes[i].targetX;
-      eyes[i].y = eyes[i].targetY;
-    } else {
-      eyeState = IDLE;
-      eyes[i].reset();
-      lastMove = currentMillis;
-    }
+    // Smooth easing
+    eyes[i].x += dx * 0.2;
+    eyes[i].y += dy * 0.2;
+
+    // Check if more movement is needed
+    if (abs(dx) > 1 || abs(dy) > 1) stillMoving = true;
 
     tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
+  }
+
+  if (!stillMoving) {
+    for (int i = 0; i < 2; i++) eyes[i].reset(i);
+    eyeState = IDLE;
+    lastMove = currentMillis;
   }
 }
 
@@ -357,6 +358,10 @@ int createRandom(int min, int max) {
   }
 }
 
+int clamp(int value, int minVal, int maxVal) {
+  return max(minVal, min(value, maxVal));
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting app");
@@ -418,19 +423,18 @@ void loop() {
       int randomX = createRandom(-40, 40);
       int randomY = createRandom(-20, 20);
 
-      speedX = (randomX/10 + 0.5);
-      speedY = (randomY/10 + 0.5);
-
-      eyes[0].targetX = eyes[0].x + randomX;
-      eyes[0].targetY = eyes[0].y + randomY;
-      eyes[1].targetX = eyes[1].x + randomX;
-      eyes[1].targetY = eyes[1].y + randomY;
+      // Set new target, but clamp it to screen bounds
+      for (int i = 0; i < 2; i++) {
+        eyes[i].targetX = clamp(eyes[i].x + randomX, 0, SCREEN_WIDTH - EYE_WIDTH);
+        eyes[i].targetY = clamp(eyes[i].y + randomY, 0, SCREEN_HEIGHT - EYE_HEIGHT);
+      }
 
       eyeState = MOVE;
     }
 
     switch (eyeState){
-      case (BLINK_GROW || BLINK_SHRINK):
+      case BLINK_SHRINK:
+      case BLINK_GROW:
         eyesBlink();
         break;
       case MOVE:
@@ -439,6 +443,8 @@ void loop() {
       default:
         break;
     }
+
+    lastFrame = currentMillis;
   }
 
   // update information every 10 minutes
