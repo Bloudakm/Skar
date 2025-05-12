@@ -306,10 +306,15 @@ void drawMainScreen() {
     //tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
   }
   
-  tft.fillEllipse(88, 112, 54, 29, 0x8FE0);
-  tft.fillEllipse(226, 112, 53, 29, 0x8FE0);
-  tft.fillEllipse(92, 113, 6, 23, 0x0);
-  tft.fillEllipse(219, 115, 6, 23, 0x0);
+  
+tft.fillRoundRect(176, 78, 108, 98, 10, 0x77E0);
+
+tft.fillEllipse(230, 126, 9, 41, 0x0);
+
+tft.fillRoundRect(46, 78, 108, 98, 10, 0x77E0);
+
+tft.fillEllipse(107, 126, 9, 41, 0x0);
+
 }
 
 void drawDetails() {
