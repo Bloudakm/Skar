@@ -85,7 +85,7 @@ struct Eye {
   void reset(int i) {
     x = EYE_X;
     y = EYE_Y;
-    targetX = EYE_X + i*(EYE_WIDTH+EYE_SPACE);
+    targetX = EYE_X + i*(EYE_WIDTH+EYE_SPACING);
     targetY = EYE_Y;
     w = EYE_WIDTH;
     h = EYE_HEIGHT;
@@ -260,7 +260,7 @@ void eyesBlink() {
         eyes[i].h += 5;
       } else {
         eyeState = IDLE;
-        eyes[i].reset();
+        eyes[i].reset(i);
         lastBlink = currentMillis;
       }
     }
@@ -304,14 +304,14 @@ void drawMainScreen() {
 
   // Eyes
   for (int i = 0; i < 2; i++) {
-    eyes[i].reset();
+    eyes[i].reset(i);
     // Eyebrows if cloudy or raining
     /*if (weather == CLOUDY || weather == RAIN) {
       tft.fillRoundRect(eyes[i].x - eyes[i].w/2, eyes[i].y - eyes[i].h - 20, eyes[i].w, 8, 4, eyeColor);
     }*/
 
     // Eye fill
-    tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
+    //tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
   }
 }
 
@@ -415,8 +415,7 @@ void loop() {
     }
   }
 
-  // Animate eyes every ~50ms animating
-  if (!showDetails && currentMillis - lastFrame > 50) {
+  if (!showDetails && currentMillis - lastFrame < 0) {
     if(currentMillis-lastBlink > blinkingPeriod && eyeState == IDLE) {
       eyeState = BLINK_SHRINK;
     } else if (currentMillis-lastMove > random(2000, 3000) && eyeState == IDLE) {
@@ -445,6 +444,7 @@ void loop() {
     }
 
     lastFrame = currentMillis;
+    //Serial.println(String(eyes));
   }
 
   // update information every 10 minutes
