@@ -220,14 +220,6 @@ void fetchWeather() {
               forecast[i].temp = int(doc["list"][i]["main"]["temp"].as<float>());
               forecast[i].condition = doc["list"][i]["weather"][0]["main"].as<String>();
             }
-
-            /*if (forecasts[0].condition == "Rain") {
-              weather = RAIN;
-            } else if (forecasts[0].condition == "Clouds") {
-              weather = CLOUDY;
-            } else {
-              weather = CLEAR;
-            }*/
           }
 
           https.end();
@@ -313,6 +305,11 @@ void drawMainScreen() {
     // Eye fill
     //tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
   }
+  
+  tft.fillEllipse(88, 112, 54, 29, 0x8FE0);
+  tft.fillEllipse(226, 112, 53, 29, 0x8FE0);
+  tft.fillEllipse(92, 113, 6, 23, 0x0);
+  tft.fillEllipse(219, 115, 6, 23, 0x0);
 }
 
 void drawDetails() {
