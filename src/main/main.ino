@@ -67,8 +67,23 @@ int humidity = 0;
 String description = "";
 String icon = "";
 
-float irisPhase = 0; // animation phase
-uint8_t prevCloudiness = 0;
+
+enum Weather { CLEAR, CLOUDY, RAIN };
+Weather weather = CLEAR;
+
+struct Eye {
+  int x, y, w, h;
+  int pupilOffset = 0;
+  unsigned long lastMove = 0;
+  unsigned long lastBlink = 0;
+  bool isBlinking = false;
+  int tearY = 0;
+};
+
+Eye eyes[2];
+
+
+
 
 // Store forecast data
 #define MAX_FORECAST 4
@@ -187,6 +202,14 @@ void fetchWeather() {
               forecasts[i].temp = int(doc["list"][i]["main"]["temp"].as<float>());
               forecasts[i].condition = doc["list"][i]["weather"][0]["main"].as<String>();
             }
+
+            /*if (forecasts[0].condition == "Rain") {
+              weather = RAIN;
+            } else if (forecasts[0].condition == "Clouds") {
+              weather = CLOUDY;
+            } else {
+              weather = CLEAR;
+            }*/
           }
 
           https.end();
@@ -202,46 +225,60 @@ void fetchWeather() {
   }
 }
 
+
+
+
+
+void updateEye(Eye &eye) {
+  unsigned long now = millis();
+
+  // Blink every ~3s
+  if (now - eye.lastBlink > 3000) {
+    eye.isBlinking = true;
+    eye.lastBlink = now;
+  }
+  if (eye.isBlinking && now - eye.lastBlink > 150) {
+    eye.isBlinking = false;
+  }
+
+  // Look around every ~5s
+  if (now - eye.lastMove > 5000) {
+    int dir = random(3); // 0=center, 1=left, 2=right
+    if (dir == 0) eye.pupilOffset = 0;
+    else if (dir == 1) eye.pupilOffset = -10;
+    else eye.pupilOffset = 10;
+
+    eye.lastMove = now;
+  }
+
+  // Tears fall in rain mode
+  if (weather == RAIN && eye.pupilOffset == 0) {
+    eye.tearY += 3;
+    if (eye.tearY > SCREEN_HEIGHT) {
+      eye.tearY = eye.y + 15;
+    }
+  }
+}
+
+
 void drawMainScreen() {
   tft.fillScreen(TFT_BLACK);
-  // Example values (ideally these come from weather)
-  uint16_t irisColor = TFT_BLUE; // Based on temp
-  drawEyes(irisColor);
-}
 
-void drawEyes(uint16_t irisColor) {
-  int eyeRadius = 50;
-  int eyeX1 = 100;
-  int eyeX2 = 220;
-  int eyeY = 120;
+  // Color of eye
+  uint16_t eyeColor = tempToColor(forecast.[0].temperature);
 
-  // Draw eye whites (only once, to avoid flicker)
-  tft.fillCircle(eyeX1, eyeY, eyeRadius, TFT_WHITE);
-  tft.fillCircle(eyeX2, eyeY, eyeRadius, TFT_WHITE);
+  // Eyes
+  for (int i = 0; i < 2; i++) {
+    // Eyebrows if cloudy or raining
+    if (weather == CLOUDY || weather == RAIN) {
+      tft.fillRoundRect(eyes[i].x - eyes[i].w/2, eyes[i].y - eyes[i].h - 20, eyes[i].w, 8, 4, eyeColor);
+    }
 
-  static int dx = 1;
-  static int irisOffset = 0;
-  irisOffset += dx;
-  if (irisOffset > 10 || irisOffset < -10) dx = -dx;
-
-  drawIris(eyeX1 + irisOffset, eyeY, 15, irisColor);
-  drawIris(eyeX2 + irisOffset, eyeY, 15, irisColor);
-
-  delay(50);
-}
-
-void drawIris(int x, int y, int r, uint16_t color) {
-  static int prevX1 = -1, prevX2 = -1;
-  if (prevX1 != -1) {
-    tft.fillCircle(prevX1, y, r + 1, TFT_WHITE);
-    tft.fillCircle(prevX2, y, r + 1, TFT_WHITE);
+    // Eye fill
+    tft.fillRoundRect(eyes[i].x - eyes[i].w/2, eyes[i].y - eyes[i].h/2, eyes[i].w, eyes[i].h, 10, eyeColor);
   }
-  tft.fillCircle(x, y, r, color);
-  if (x < SCREEN_WIDTH / 2)
-    prevX1 = x;
-  else
-    prevX2 = x;
 }
+
 
 void drawDetails() {
   tft.fillScreen(TFT_BLACK);
@@ -301,9 +338,14 @@ void setup() {
 
   tft.begin();
 
+  eyes[0] = {100, 120, 60, 30};
+  eyes[1] = {220, 120, 60, 30};
+
+  randomSeed(analogRead(0)); // Seed randomness
+
   connectWiFi();
   fetchWeather();
-  drawMainScreen();
+
 }
 
 void loop() {
@@ -317,12 +359,12 @@ void loop() {
   }
 
   // Animate eyes every ~50ms
-  /*if (!showDetails && millis() - lastFrame > 5) {
-    irisPhase += 0.2;
-    if (irisPhase > TWO_PI) irisPhase -= TWO_PI;
-    drawMainScreen();
-    lastFrame = millis();
-  }*/
+  if (!showDetails && millis() - lastFrame > 50) {
+    for (int i = 0; i < 2; i++) {
+      updateEye(eyes[i]);
+      drawEye(eyes[i]);
+    }
+  }
 
   // update information every 10 minutes
   if(millis() - lastAPICall > (10*60*1000)) {
