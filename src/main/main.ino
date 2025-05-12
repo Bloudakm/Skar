@@ -68,6 +68,8 @@ unsigned long lastAPICall = 0;
 unsigned long lastFrame = 0;
 unsigned long currentMillis = 0;
 
+int blinkingPeriod = 4000;
+
 int temperature = 0;
 int cloudiness = 0;
 int humidity = 0;
@@ -80,32 +82,26 @@ EyeState eyeState = IDLE;
 struct Eye {
   int x, y, targetX, targetY, w, h;
   int tearY = 0;
+  void reset(int i) {
+    x = EYE_X;
+    y = EYE_Y;
+    targetX = EYE_X + i*(EYE_WIDTH+EYE_SPACE);
+    targetY = EYE_Y;
+    w = EYE_WIDTH;
+    h = EYE_HEIGHT;
+  }
 };
 
 uint32_t eyeColor;
 
-unsigned long lastMove = 0;
-unsigned long lastBlink = 0;
+unsigned long lastMove = 1000;
+unsigned long lastBlink = 2000;
 unsigned int speed = 20;
+int speedX = 0;
+int speedY = 0;
 
 // SETTING the eyes parameters
-Eye eyes[2] = {
-  {
-    EYE_X, EYE_Y, EYE_X, EYE_Y, // target == current position == (x, y) = (60, 90)
-    EYE_WIDTH, EYE_HEIGHT // width = 90; height = 60;
-  },
-  {
-    (EYE_X+EYE_WIDTH+EYE_SPACING), EYE_Y, (EYE_X+EYE_WIDTH+EYE_SPACING), EYE_Y, // target == current position == (x, y) = (170, 90)
-    EYE_WIDTH, EYE_HEIGHT // width = 90; height = 60;
-  }
-};
-
- /* eyes[0] = {60, 90, 60, 90, // target == current position == (x, y) = (100, 120)
-             90, 60}; // width = 60; height = 30;
-  eyes[1] = {170, 90, 170, 90, // target == current position == (x, y) = (100, 120)
-             90, 60}; // width = 60; height = 30;*/
-
-
+Eye eyes[2];
 
 // Store forecast data
 #define MAX_FORECAST 4
@@ -114,7 +110,7 @@ struct Forecast {
   String condition;
   int temp;
 };
-Forecast forecasts[MAX_FORECAST];
+Forecast forecast[MAX_FORECAST];
 
 void touch_calibrate() {
   uint16_t calData[5];
@@ -220,9 +216,9 @@ void fetchWeather() {
 
             for (int i = 0; i < MAX_FORECAST; i++) {
               String timestamp = doc["list"][i]["dt_txt"].as<String>();
-              forecasts[i].time = timestamp.substring(11, 16);
-              forecasts[i].temp = int(doc["list"][i]["main"]["temp"].as<float>());
-              forecasts[i].condition = doc["list"][i]["weather"][0]["main"].as<String>();
+              forecast[i].time = timestamp.substring(11, 16);
+              forecast[i].temp = int(doc["list"][i]["main"]["temp"].as<float>());
+              forecast[i].condition = doc["list"][i]["weather"][0]["main"].as<String>();
             }
 
             /*if (forecasts[0].condition == "Rain") {
@@ -247,42 +243,8 @@ void fetchWeather() {
   }
 }
 
-
-
-
-
-/*void updateEye(Eye &eye) {
-  unsigned long now = millis();
-
-  // Blink every ~3s
-  if (now - eye.lastBlink > 3000) {
-    eye.isBlinking = true;
-    eye.lastBlink = now;
-  }
-  if (eye.isBlinking && now - eye.lastBlink > 150) {
-    eye.isBlinking = false;
-  }
-
-  // Look around every ~5s
-  if (now - eye.lastMove > 5000) {
-    int dir = random(3); // 0=center, 1=left, 2=right
-    if (dir == 0) eye.pupilOffset = 0;
-    else if (dir == 1) eye.pupilOffset = -10;
-    else eye.pupilOffset = 10;
-
-    eye.lastMove = now;
-  }
-
-  // Tears fall in rain mode
-  if (weather == RAIN && eye.pupilOffset == 0) {
-    eye.tearY += 3;
-    if (eye.tearY > SCREEN_HEIGHT) {
-      eye.tearY = eye.y + 15;
-    }
-  }
-}*/
-
 void eyesBlink() {
+  Serial.println("blinkin");
   tft.fillScreen(TFT_BLACK);
 
   for(int i = 0; i < 2; i++) {
@@ -298,6 +260,7 @@ void eyesBlink() {
         eyes[i].h += 5;
       } else {
         eyeState = IDLE;
+        eyes[i].reset();
         lastBlink = currentMillis;
       }
     }
@@ -307,17 +270,22 @@ void eyesBlink() {
 }
 
 void eyesMove() {
+  Serial.println("moovin");
   tft.fillScreen(TFT_BLACK);
 
   for(int i = 0; i < 2; i++) {
-    if(eyes[i].x != eyes[i].targetX || eyes[i].y != eyes[i].targetY) {
-      eyes[i].x += (eyes[i].targetX-eyes[i].x)/speed;
-      eyes[i].y += (eyes[i].targetY-eyes[i].y)/speed;
-    } else if(eyes[0].x != EYE_X) {
-      eyes[i].targetX = EYE_X+i*(EYE_WIDTH+EYE_SPACING);
-      eyes[i].targetY = EYE_Y;
+    int diffX = eyes[i].targetX-eyes[i].x;
+    int diffY = eyes[i].targetY-eyes[i].y;
+
+    if((diffX > speedX || diffX < -speedX) && (diffY > speedY || diffY < -speedY)) {
+      eyes[i].x += speedX;
+      eyes[i].y += speedY;
+    } else if(eyes[0].targetX != EYE_X) {
+      eyes[i].x = eyes[i].targetX;
+      eyes[i].y = eyes[i].targetY;
     } else {
       eyeState = IDLE;
+      eyes[i].reset();
       lastMove = currentMillis;
     }
 
@@ -327,13 +295,15 @@ void eyesMove() {
 
 
 void drawMainScreen() {
+  Serial.println("Main screen");
   tft.fillScreen(TFT_BLACK);
 
   // Color of eye
-  eyeColor = tempToColor(forecast.[0].temperature);
+  eyeColor = tempToColor(forecast[0].temp);
 
   // Eyes
   for (int i = 0; i < 2; i++) {
+    eyes[i].reset();
     // Eyebrows if cloudy or raining
     /*if (weather == CLOUDY || weather == RAIN) {
       tft.fillRoundRect(eyes[i].x - eyes[i].w/2, eyes[i].y - eyes[i].h - 20, eyes[i].w, 8, 4, eyeColor);
@@ -344,7 +314,6 @@ void drawMainScreen() {
   }
 }
 
-
 void drawDetails() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextSize(2);
@@ -354,11 +323,11 @@ void drawDetails() {
     int x = 10;
     int y = 10 + i * 55;
     tft.setCursor(x, y);
-    tft.print(forecasts[i].time);
+    tft.print(forecast[i].time);
     tft.setCursor(x + 100, y);
-    tft.print(forecasts[i].temp);
+    tft.print(forecast[i].temp);
     tft.print(" C");
-    drawWeatherIcon(forecasts[i].condition, x + 200, y);
+    drawWeatherIcon(forecast[i].condition, x + 200, y);
   }
 }
 
@@ -379,9 +348,11 @@ void drawWeatherIcon(String condition, int x, int y) {
 int createRandom(int min, int max) {
   int rand = random(min, max);
 
-  if(rand == 0) {
+  if(rand < (max/2) && rand > (min/2)) {
     return createRandom(min, max);
   } else {
+    Serial.print("Random number: ");
+    Serial.println(rand);
     return rand;
   }
 }
@@ -400,7 +371,7 @@ void setup() {
   Serial.println("SPIFFS mounted");
 
   tft.init();
-  tft.setRotation(1); // adjust if needed
+  tft.setRotation(3); // adjust if needed
   tft.fillScreen(TFT_BLACK);
   tft.setTextFont(2);
   digitalWrite(16, HIGH);
@@ -428,7 +399,13 @@ void loop() {
   if (tft.getTouch(&x, &y)) {
     if (currentMillis - lastTouchTime > 800) {
       showDetails = !showDetails;
-      showDetails ? drawDetails() : drawMainScreen();
+      if(showDetails) {
+        eyeState = IDLE;
+
+        drawDetails();
+      } else {
+        drawMainScreen();
+      }
       lastTouchTime = currentMillis;
     }
   }
@@ -441,6 +418,9 @@ void loop() {
       int randomX = createRandom(-40, 40);
       int randomY = createRandom(-20, 20);
 
+      speedX = (randomX/10 + 0.5);
+      speedY = (randomY/10 + 0.5);
+
       eyes[0].targetX = eyes[0].x + randomX;
       eyes[0].targetY = eyes[0].y + randomY;
       eyes[1].targetX = eyes[1].x + randomX;
@@ -451,10 +431,10 @@ void loop() {
 
     switch (eyeState){
       case (BLINK_GROW || BLINK_SHRINK):
-        blinkEyes();
+        eyesBlink();
         break;
       case MOVE:
-        moveEyes();
+        eyesMove();
         break;
       default:
         break;
