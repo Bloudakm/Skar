@@ -307,14 +307,10 @@ void drawMainScreen() {
   }
   
   
-tft.fillRoundRect(176, 78, 108, 98, 10, 0x77E0);
-
-tft.fillEllipse(230, 126, 9, 41, 0x0);
-
-tft.fillRoundRect(46, 78, 108, 98, 10, 0x77E0);
-
-tft.fillEllipse(107, 126, 9, 41, 0x0);
-
+  tft.fillRoundRect(176, 78, 108, 98, 10, 0x77E0);
+  tft.fillEllipse(230, 126, 9, 41, 0x0);
+  tft.fillRoundRect(46, 78, 108, 98, 10, 0x77E0);
+  tft.fillEllipse(107, 126, 9, 41, 0x0);
 }
 
 void drawDetails() {
