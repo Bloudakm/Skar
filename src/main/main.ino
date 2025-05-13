@@ -1,11 +1,11 @@
+#include <ArduinoJson.h>
+#include "FS.h"
+#include <HTTPClient.h>
+#include "SPIFFS.h"
+#include <SPI.h>
+#include <TFT_eSPI.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <HTTPClient.h>
-#include <TFT_eSPI.h>
-#include "SPIFFS.h"
-#include "FS.h"
-#include <ArduinoJson.h>
-#include <SPI.h>
 
 #include "secrets.h"
 #include "icons.h"
@@ -92,7 +92,7 @@ struct Eye {
   }
 };
 
-uint32_t eyeColor;
+int eyeColor;
 
 unsigned long lastMove = 1000;
 unsigned long lastBlink = 2000;
@@ -175,7 +175,7 @@ void touch_calibrate() {
 }
 
 // --- Colors ---
-uint16_t tempToColor(int tempC) {
+int tempToColor(int tempC) {
   if (tempC <= 0) return tft.color565(0, 100, 255);  // blue
   if (tempC <= 10) return tft.color565(0, 200, 255);
   if (tempC <= 20) return tft.color565(0, 255, 150);
@@ -297,13 +297,6 @@ void drawMainScreen() {
   // Eyes
   for (int i = 0; i < 2; i++) {
     eyes[i].reset(i);
-    // Eyebrows if cloudy or raining
-    /*if (weather == CLOUDY || weather == RAIN) {
-      tft.fillRoundRect(eyes[i].x - eyes[i].w/2, eyes[i].y - eyes[i].h - 20, eyes[i].w, 8, 4, eyeColor);
-    }*/
-
-    // Eye fill
-    //tft.fillRoundRect(eyes[i].x, eyes[i].y, eyes[i].w, eyes[i].h, 10, eyeColor);
   }
   
   
